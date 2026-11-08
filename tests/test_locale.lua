@@ -121,6 +121,19 @@ tests.register_rejects_invalid_languages_and_tables = function()
     equal(L["Taste wählen"], "Choose key"); equal(L["Entfernen"], "Remove")
 end
 
+tests.entries_returns_a_detached_copy_or_nil = function()
+    local _, Locale, L = load("enUS")
+    equal(Locale.Entries("fr"), nil, "unknown language")
+    equal(Locale.Entries("de"), nil, "the default language has no table")
+    equal(next(Locale.Entries("en")), nil, "empty before registration")
+    equal(Locale.Register("en", {["Taste wählen"] = "Choose key"}), true)
+    local copy = Locale.Entries("en")
+    equal(copy["Taste wählen"], "Choose key")
+    copy["Taste wählen"] = "changed"; copy["Entfernen"] = "Remove"
+    equal(L["Taste wählen"], "Choose key", "editing the copy never reaches the lookup")
+    equal(L["Entfernen"], "Entfernen", "entries added to the copy are not registered")
+end
+
 tests.lookup_ignores_non_string_keys_and_never_stores_keys = function()
     local _, _, L = load("enUS")
     equal(L[5], nil); equal(L[true], nil)

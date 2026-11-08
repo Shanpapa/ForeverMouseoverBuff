@@ -5,6 +5,13 @@
 local _, ns = ...
 local Theme = {}
 ns.Theme = Theme
+-- Texts resolve at call time through the locale layer; without it (tests,
+-- partial installs) the German key is shown unchanged.
+local function L(key)
+    local lookup = ns.L
+    if lookup then return lookup[key] end
+    return key
+end
 Theme.colors = {
     bg = {0.047, 0.086, 0.102, 1}, panel = {0.071, 0.125, 0.145, 1},
     row = {0.09, 0.157, 0.173, 1}, edge = {0.16, 0.235, 0.25, 1},
@@ -75,9 +82,9 @@ function Theme.Toggle(parent, value, description, x, y, width, action)
     button.badge:SetJustifyH("CENTER"); button.badge:SetJustifyV("MIDDLE")
     function button:SetValue(enabled)
         self.value = enabled == true
-        self.text = value .. ": " .. (self.value and "an" or "aus")
+        self.text = value .. ": " .. (self.value and L("an") or L("aus"))
         paint(self.indicator, self.value and c.mint or c.edge)
-        self.badge:SetText(self.value and "AN" or "AUS")
+        self.badge:SetText(self.value and L("AN") or L("AUS"))
         self.badge:SetTextColor(unpack(self.value and c.bg or c.muted))
     end
     function button:GetText() return self.text end

@@ -80,6 +80,15 @@ function Locale.Register(language, entries)
     return true
 end
 
+-- Detached copy for tests and tooling; callers can never reach the live table.
+function Locale.Entries(language)
+    local source = translations[language]
+    if not source then return nil end
+    local copy = {}
+    for key, text in pairs(source) do copy[key] = text end
+    return copy
+end
+
 -- The lookup never caches: the table stays empty, and every access resolves the
 -- language live, so a switch applies to the next message without a reload.
 ns.L = setmetatable({}, {

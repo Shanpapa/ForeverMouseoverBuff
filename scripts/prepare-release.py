@@ -25,6 +25,7 @@ ADDON_NAMES = (
     "FeberdinDiagnostics.lua",
     "Core.lua",
     "Locale.lua",
+    "LocaleEnglish.lua",
     "API.lua",
     "Hash.lua",
     "CounterCodec.lua",
@@ -54,6 +55,7 @@ ADDON_NAMES = (
 )
 PORTABLE_TESTS = (
     "test_locale.lua",
+    "test_locale_english.lua",
     "test_core.lua",
     "test_classes.lua",
     "test_api.lua",

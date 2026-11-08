@@ -6,6 +6,16 @@
 local _, namespace = ...
 local Core = {}
 namespace.Core = Core
+-- Texts resolve at call time through the locale layer; without it (tests,
+-- partial installs) the German key is shown unchanged. Core loads before
+-- Locale.lua, so the lookup is read on every call, never captured at file scope.
+local function L(key)
+    local lookup = namespace.L
+    if lookup then return lookup[key] end
+    return key
+end
+-- K marks a key stored in a file-scope table; it is resolved later with L(...).
+local function K(key) return key end
 
 -- Ordered, visible defaults avoid guessing a player's talents or group role.
 -- Warrior defaults exclude mana regeneration; users can explicitly change them.
@@ -24,19 +34,19 @@ local families = { might = true, wisdom = true, kings = true }
 -- that changes healing or movement is explicit-only, because context is unknown.
 local buffProfiles = {
     PALADIN = { auto = { "might", "wisdom", "kings" }, families = {
-        { "might", 19740, "Macht" }, { "wisdom", 19742, "Weisheit" }, { "kings", 20217, "Könige" } } },
+        { "might", 19740, K("Macht") }, { "wisdom", 19742, K("Weisheit") }, { "kings", 20217, K("Könige") } } },
     MAGE = { auto = { "intellect" }, families = {
-        { "intellect", 1459, "Intelligenz" }, { "dampen", 604, "Magie dämpfen" },
-        { "amplify", 1008, "Magie verstärken" } } },
+        { "intellect", 1459, K("Intelligenz") }, { "dampen", 604, K("Magie dämpfen") },
+        { "amplify", 1008, K("Magie verstärken") } } },
     PRIEST = { auto = { "fortitude", "spirit", "shadow" }, families = {
-        { "fortitude", 1243, "Seelenstärke" }, { "spirit", 14752, "Willenskraft" },
-        { "shadow", 976, "Schattenschutz" } } },
+        { "fortitude", 1243, K("Seelenstärke") }, { "spirit", 14752, K("Willenskraft") },
+        { "shadow", 976, K("Schattenschutz") } } },
     DRUID = { auto = { "mark", "thorns" }, families = {
-        { "mark", 1126, "Mal der Wildnis" }, { "thorns", 467, "Dornen" } } },
+        { "mark", 1126, K("Mal der Wildnis") }, { "thorns", 467, K("Dornen") } } },
     WARLOCK = { auto = { "breath", "invisibility" }, families = {
-        { "breath", 5697, "Unterwasseratmung" }, { "invisibility", 132, "Unsichtbarkeit entdecken", 2970, 11743 } } },
+        { "breath", 5697, K("Unterwasseratmung") }, { "invisibility", 132, K("Unsichtbarkeit entdecken"), 2970, 11743 } } },
     SHAMAN = { auto = { "water_breathing" }, families = {
-        { "water_breathing", 131, "Wasseratmung" }, { "water_walking", 546, "Wasserwandeln" } } },
+        { "water_breathing", 131, K("Wasseratmung") }, { "water_walking", 546, K("Wasserwandeln") } } },
 }
 local allBuffFamilies = {}
 for _, profile in pairs(buffProfiles) do
@@ -69,47 +79,47 @@ end
 local healFamilies = { flash = true, holy_light = true }
 local permanentFamilies = { "might", "wisdom", "kings" }
 local classOptions = {
-    { token = "DRUID", name = "Druide" }, { token = "WARLOCK", name = "Hexenmeister" },
-    { token = "HUNTER", name = "Jäger" }, { token = "WARRIOR", name = "Krieger" },
-    { token = "MAGE", name = "Magier" }, { token = "PALADIN", name = "Paladin" },
-    { token = "PRIEST", name = "Priester" }, { token = "SHAMAN", name = "Schamane" },
-    { token = "ROGUE", name = "Schurke" },
+    { token = "DRUID", name = K("Druide") }, { token = "WARLOCK", name = K("Hexenmeister") },
+    { token = "HUNTER", name = K("Jäger") }, { token = "WARRIOR", name = K("Krieger") },
+    { token = "MAGE", name = K("Magier") }, { token = "PALADIN", name = "Paladin" },
+    { token = "PRIEST", name = K("Priester") }, { token = "SHAMAN", name = K("Schamane") },
+    { token = "ROGUE", name = K("Schurke") },
 }
 -- Keep cause and next action together: the same text reaches preview, chat and
 -- explicit status. Unknown usability never proves mana loss or a cooldown.
 local messages = {
-    INVALID_CONTEXT = "Spielerdaten fehlen oder sind ungültig. Bitte erneut über einen Spieler fahren.",
-    UNSUPPORTED_CLASS = "Diese Klasse hat keinen direkten dauerhaften Buff für einzelne andere Spieler. Gruppenrufe, Aspekte, Waffen- und Eigenbuffs bitte direkt über WoW nutzen.",
-    PLAYER_STATE_UNKNOWN = "Kampf-, Reit- oder Fahrzeugstatus unbekannt. Kurz warten; bleibt es so: /reload, dann /fmb status.",
-    PLAYER_IN_COMBAT = "Auto-Auswahl im Kampf gesperrt. Nach dem Kampf erneut drücken. Nur Paladine haben eine feste vorbereitete Könige-Belegung.",
-    MOUNTED = "Bitte zuerst absteigen; das Addon steigt nicht automatisch ab.",
-    FLYING = "Im Flug wird kein Buff vorbereitet. Erst landen und absteigen, dann erneut drücken.",
-    IN_VEHICLE = "Bitte zuerst das Fahrzeug verlassen.",
-    NO_TARGET = "Fahre mit der Maus über einen anderen befreundeten Spieler.",
-    TARGET_STATE_UNKNOWN = "Zieldaten unbekannt. Maus erneut auf einen nahen freundlichen Spieler halten; bleibt es so: /reload.",
-    NOT_PLAYER = "Dieses Ziel ist kein Spieler. Maus auf einen befreundeten Spieler halten und Taste loslassen.",
-    NOT_FRIENDLY = "Dieses Ziel kann nicht freundlich gebufft werden. Einen befreundeten Spieler wählen.",
-    TARGET_DEAD = "Dieses Ziel ist tot oder ein Geist. Einen lebenden befreundeten Spieler wählen.",
-    SELF_TARGET = "Eigene Figur gewählt. Maus auf einen anderen befreundeten Spieler halten und Taste loslassen.",
-    TARGET_DISCONNECTED = "Dieser Spieler ist offline. Einen verbundenen befreundeten Spieler wählen.",
-    TARGET_NOT_VISIBLE = "Ziel unsichtbar oder Daten fehlen. Näher herangehen und Maus erneut auf den Spieler halten.",
-    TARGET_LEVEL_UNKNOWN = "Zielstufe unbekannt. Näher herangehen und erneut über den Spieler fahren; bleibt es so: /reload.",
-    TARGET_CLASS_UNKNOWN = "Zielklasse unbekannt. Maus erneut auf den Spieler halten; bleibt es so: /reload.",
-    AURA_UNKNOWN = "Vorhandene Buffs noch unbekannt. Kurz warten und erneut drücken; bleibt es so: /reload, dann /fmb status.",
-    HAS_BLESSING = "Vorhandene gleichartige Buffs bleiben erhalten. Anderen Spieler wählen oder warten, bis ein Segen abläuft.",
-    OWN_BLESSING_PRESERVED = "Dein Segen ist schon vorhanden. Kein erneuter Buff nötig; Auto erhält ihn bis zum Ablauf.",
-    INVALID_MODE = "Die Buff-Auswahl passt nicht zu deiner Klasse. Bitte /fmb auto oder einen Klassenbuff im Menü wählen.",
-    INVALID_PRIORITIES = "Klassen-Prioritäten ungültig. Mit /fmb priorities reset die Standardwerte wiederherstellen.",
-    CLASS_DISABLED = "Für diese Zielklasse ist kein Auto-Buff aktiviert oder sinnvoll. Klassenbuff im Menü wählen oder ein passendes Ziel suchen.",
-    INVALID_SPELL_DATA = "Zauber-, Rang- oder Reichweitendaten fehlen. Maus neu aufs Ziel halten; bleibt es so: /reload, dann /fmb status.",
-    NO_KNOWN_SPELL = "Kein Buff der Auswahl gelernt. Gewünschten Zauber lernen oder mit /fmb auto gelernte Alternativen nutzen.",
-    TARGET_LEVEL_TOO_LOW = "Gelernte Ränge sind für die Zielstufe zu hoch. Niedrigeren Rang lernen oder höherstufigen Spieler wählen.",
-    OUT_OF_RANGE = "Dieser Spieler ist außer Reichweite. Bitte näher herangehen und die Buff-Taste erneut drücken und loslassen.",
-    NOT_USABLE = "WoW meldet den gewählten Buff als nicht nutzbar. Mana, Reagenzien und WoW-Hinweis prüfen; /fmb status hilft bei Dauerproblemen.",
+    INVALID_CONTEXT = K("Spielerdaten fehlen oder sind ungültig. Bitte erneut über einen Spieler fahren."),
+    UNSUPPORTED_CLASS = K("Diese Klasse hat keinen direkten dauerhaften Buff für einzelne andere Spieler. Gruppenrufe, Aspekte, Waffen- und Eigenbuffs bitte direkt über WoW nutzen."),
+    PLAYER_STATE_UNKNOWN = K("Kampf-, Reit- oder Fahrzeugstatus unbekannt. Kurz warten; bleibt es so: /reload, dann /fmb status."),
+    PLAYER_IN_COMBAT = K("Auto-Auswahl im Kampf gesperrt. Nach dem Kampf erneut drücken. Nur Paladine haben eine feste vorbereitete Könige-Belegung."),
+    MOUNTED = K("Bitte zuerst absteigen; das Addon steigt nicht automatisch ab."),
+    FLYING = K("Im Flug wird kein Buff vorbereitet. Erst landen und absteigen, dann erneut drücken."),
+    IN_VEHICLE = K("Bitte zuerst das Fahrzeug verlassen."),
+    NO_TARGET = K("Fahre mit der Maus über einen anderen befreundeten Spieler."),
+    TARGET_STATE_UNKNOWN = K("Zieldaten unbekannt. Maus erneut auf einen nahen freundlichen Spieler halten; bleibt es so: /reload."),
+    NOT_PLAYER = K("Dieses Ziel ist kein Spieler. Maus auf einen befreundeten Spieler halten und Taste loslassen."),
+    NOT_FRIENDLY = K("Dieses Ziel kann nicht freundlich gebufft werden. Einen befreundeten Spieler wählen."),
+    TARGET_DEAD = K("Dieses Ziel ist tot oder ein Geist. Einen lebenden befreundeten Spieler wählen."),
+    SELF_TARGET = K("Eigene Figur gewählt. Maus auf einen anderen befreundeten Spieler halten und Taste loslassen."),
+    TARGET_DISCONNECTED = K("Dieser Spieler ist offline. Einen verbundenen befreundeten Spieler wählen."),
+    TARGET_NOT_VISIBLE = K("Ziel unsichtbar oder Daten fehlen. Näher herangehen und Maus erneut auf den Spieler halten."),
+    TARGET_LEVEL_UNKNOWN = K("Zielstufe unbekannt. Näher herangehen und erneut über den Spieler fahren; bleibt es so: /reload."),
+    TARGET_CLASS_UNKNOWN = K("Zielklasse unbekannt. Maus erneut auf den Spieler halten; bleibt es so: /reload."),
+    AURA_UNKNOWN = K("Vorhandene Buffs noch unbekannt. Kurz warten und erneut drücken; bleibt es so: /reload, dann /fmb status."),
+    HAS_BLESSING = K("Vorhandene gleichartige Buffs bleiben erhalten. Anderen Spieler wählen oder warten, bis ein Segen abläuft."),
+    OWN_BLESSING_PRESERVED = K("Dein Segen ist schon vorhanden. Kein erneuter Buff nötig; Auto erhält ihn bis zum Ablauf."),
+    INVALID_MODE = K("Die Buff-Auswahl passt nicht zu deiner Klasse. Bitte /fmb auto oder einen Klassenbuff im Menü wählen."),
+    INVALID_PRIORITIES = K("Klassen-Prioritäten ungültig. Mit /fmb priorities reset die Standardwerte wiederherstellen."),
+    CLASS_DISABLED = K("Für diese Zielklasse ist kein Auto-Buff aktiviert oder sinnvoll. Klassenbuff im Menü wählen oder ein passendes Ziel suchen."),
+    INVALID_SPELL_DATA = K("Zauber-, Rang- oder Reichweitendaten fehlen. Maus neu aufs Ziel halten; bleibt es so: /reload, dann /fmb status."),
+    NO_KNOWN_SPELL = K("Kein Buff der Auswahl gelernt. Gewünschten Zauber lernen oder mit /fmb auto gelernte Alternativen nutzen."),
+    TARGET_LEVEL_TOO_LOW = K("Gelernte Ränge sind für die Zielstufe zu hoch. Niedrigeren Rang lernen oder höherstufigen Spieler wählen."),
+    OUT_OF_RANGE = K("Dieser Spieler ist außer Reichweite. Bitte näher herangehen und die Buff-Taste erneut drücken und loslassen."),
+    NOT_USABLE = K("WoW meldet den gewählten Buff als nicht nutzbar. Mana, Reagenzien und WoW-Hinweis prüfen; /fmb status hilft bei Dauerproblemen."),
 }
 
 local function blocked(code, family)
-    return { ready = false, code = code, text = messages[code], family = family }
+    return { ready = false, code = code, text = L(messages[code]), family = family }
 end
 
 local function positiveInteger(value, maximum)
@@ -303,7 +313,7 @@ local function healingDecision(context)
         if spell and spell.usable and spell.inRange then
             return { ready = true, code = "READY_HEAL", action = "heal", healFamily = family,
                 spellID = spell.spellID, spellName = spell.spellName,
-                text = spell.spellName .. " bereit: Heilung unter 50 % im Stehen – Taste drücken und loslassen." }
+                text = L("%s bereit: Heilung unter 50 %% im Stehen – Taste drücken und loslassen."):format(spell.spellName) }
         end
     end
 end
@@ -381,8 +391,8 @@ function Core.Decide(context)
             local fallback = index > 1
             return {
                 ready = true, code = fallback and "READY_FALLBACK" or "READY",
-                text = selected.spellName .. (fallback and " als Alternative bereit – per Tastendruck buffen."
-                    or " bereit – per Tastendruck buffen."),
+                text = fallback and L("%s als Alternative bereit – per Tastendruck buffen."):format(selected.spellName)
+                    or L("%s bereit – per Tastendruck buffen."):format(selected.spellName),
                 spellID = selected.spellID, spellName = selected.spellName, family = family,
                 fallbackFrom = fallback and primary or nil,
                 fallbackReason = fallback and firstReason or nil,

@@ -205,8 +205,10 @@ nicht pauschal gefiltert.
   Auto folgt der Sprache des WoW-Clients. Chat folgt der Einstellung sofort;
   Menütexte wechseln nach `/reload`. Solange das aussteht, erscheint neben dem
   Schalter ein „Neu laden“-Knopf (nur außerhalb des Kampfes).
-- Die Texte des Addons sind in dieser Version deutsch; der Schalter bereitet
-  die englische Oberfläche vor.
+- Menü-, Chat-, Status- und Hilfetexte gibt es auf Deutsch und Englisch. Die
+  deutschen Texte sind die Quelle; `LocaleEnglish.lua` enthält die englische
+  Tabelle, ein Test prüft, dass jeder Text einen Eintrag hat. Grüße an andere
+  Spieler sind in dieser Version weiterhin deutsch.
 ## 🔔 Töne nach deinem Geschmack
 
 - `/fmb sound on` beziehungsweise `/fmb sound off`: Ton bei gesperrten Buffversuchen.

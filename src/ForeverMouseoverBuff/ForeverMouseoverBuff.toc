@@ -13,6 +13,7 @@
 FeberdinDiagnostics.lua
 Core.lua
 Locale.lua
+LocaleEnglish.lua
 API.lua
 Hash.lua
 CounterCodec.lua

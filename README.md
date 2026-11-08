@@ -189,10 +189,12 @@ addon or older unmarked message.
 
 - `Auto | DE | EN` on the menu title row, or `/fmb lang auto | de | en`. Auto
   follows the WoW client language. Chat follows the setting immediately; menu
-  texts change after `/reload`, and a "Neu laden" button appears next to the
-  switch while that is pending (outside combat only).
-- The addon's texts are German in this version; the switch prepares the
-  English interface.
+  texts change after `/reload`, and a "Neu laden" / "Reload UI" button appears
+  next to the switch while that is pending (outside combat only).
+- Menu, chat, status and help texts are available in German and English.
+  The German texts are the source; `LocaleEnglish.lua` holds the English
+  table, and a test checks that every text has an entry. Greetings sent to
+  other players are still German in this version.
 ## 🔔 Sounds you control
 
 - `/fmb sound on` or `/fmb sound off`: feedback for blocked buff attempts.

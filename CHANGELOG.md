@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — English interface texts
+
+- Add `LocaleEnglish.lua`: English texts for the menu, chat messages, status
+  reasons, help, key capture and the feedback window, keyed by the German
+  source strings. Spell and class labels use the official English names.
+  German output is unchanged; the German strings stay in the code.
+- Texts resolve at call time through a small per-module helper; keys kept in
+  file-scope tables are marked and resolved when shown. Concatenated messages
+  became format strings with identical German output.
+- Add `tests/test_locale_english.lua`: scans the sources and requires a
+  distinct English entry with equal placeholders for every wrapped key, and
+  no stray entries. Greetings to other players are not translated yet.
+
 ## Unreleased — Language setting
 
 - Add a per-character language setting with an `Auto | DE | EN` switch on the

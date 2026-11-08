@@ -4,12 +4,22 @@
 -- Invariants: no hover/timer casts, automatic key assignment, self fallback or dynamic combat selection.
 -- Debug: /fmb diag; /fmb debug on; /fmb status. Structured local logs flush on reload/logout.
 local _, ns = ...
+-- Texts resolve at call time through the locale layer; without it (tests,
+-- partial installs) the German key is shown unchanged.
+local function L(key)
+    local lookup = ns.L
+    if lookup then return lookup[key] end
+    return key
+end
+-- K marks a key stored in a file-scope table; it is resolved later with L(...).
+local function K(key) return key end
+local function onOff(value) return value and L("an") or L("aus") end
 ns.VERSION = "0.10.0"
 -- Persist help revisions separately from addon releases: only missing-key users
 -- need the improved setup once, and dismissing it remains a valid choice.
 ns.INTRODUCTION_VERSION = 2
 local binding = "CLICK ForeverMouseoverBuffButton:LeftButton"
-local modes = {auto = "Auto", might = "Macht", wisdom = "Weisheit", kings = "Könige"}
+local modes = {auto = "Auto", might = K("Macht"), wisdom = K("Weisheit"), kings = K("Könige")}
 -- Share the profile labels with commands/status; family permissions are checked
 -- separately against the caster, so a Mage cannot persist a Paladin-only mode.
 for _, option in ipairs(ns.Core.ClassOptions()) do
@@ -18,7 +28,8 @@ end
 local elapsed = 0
 local feedbackInterval = 2
 BINDING_HEADER_FOREVERMOUSEOVERBUFF = "Forever Mouseover Buff"
-_G["BINDING_NAME_" .. binding] = "Mouseover: Klassenbuff / Paladin-Heilung"
+local BINDING_LABEL = K("Mouseover: Klassenbuff / Paladin-Heilung")
+_G["BINDING_NAME_" .. binding] = L(BINDING_LABEL)
 
 -- Cache only the public class token. Combat never changes the prepared action;
 -- an unavailable token remains unknown instead of assuming a Paladin.
@@ -83,7 +94,7 @@ function ns:PlayFeedbackSound()
     self:Log(accepted and "SOUND_REQUESTED" or "SOUND_FAILED")
     if not accepted and not self.soundFailureReported then
         self.soundFailureReported = true
-        say("Hinweiston konnte nicht bestätigt werden. Text bleibt aktiv; /fmb soundtest und WoW-Soundoptionen prüfen.")
+        say(L("Hinweiston konnte nicht bestätigt werden. Text bleibt aktiv; /fmb soundtest und WoW-Soundoptionen prüfen."))
     end
     return accepted
 end
@@ -100,7 +111,7 @@ function ns:Feedback(decision)
             or stamp - self.lastFeedbackAt >= feedbackInterval))
     if textDue then
         self.lastFeedbackCode, self.lastFeedbackAt = decision.code, stamp
-        local message = "Kein Zauber: " .. decision.text
+        local message = L("Kein Zauber: %s"):format(decision.text)
         say(message)
         local shown = false
         if UIErrorsFrame and type(UIErrorsFrame.AddMessage) == "function" then
@@ -125,7 +136,7 @@ end
 
 local function combatFeedback(self)
     self:Log("PLAYER_IN_COMBAT")
-    self:Feedback(blocked("PLAYER_IN_COMBAT", "Im Kampf gesperrt. Bitte außerhalb des Kampfes erneut drücken."))
+    self:Feedback(blocked("PLAYER_IN_COMBAT", L("Im Kampf gesperrt. Bitte außerhalb des Kampfes erneut drücken.")))
 end
 
 -- Optional local observer: failure must never change the protected action path.
@@ -220,7 +231,7 @@ function ns:BindingKey()
 end
 
 function ns:BindingLabel()
-    return self:BindingKey() or "Noch keine Taste"
+    return self:BindingKey() or L("Noch keine Taste")
 end
 
 -- The protected router keeps the original binding name. Its combat branch is
@@ -253,45 +264,45 @@ end
 
 function ns:CombatDecision()
     if self.playerClass and self.playerClass ~= "PALADIN" then
-        return blocked("PLAYER_IN_COMBAT", "Klassenbuffs sind im Kampf gesperrt. Nach dem Kampf erneut drücken.")
+        return blocked("PLAYER_IN_COMBAT", L("Klassenbuffs sind im Kampf gesperrt. Nach dem Kampf erneut drücken."))
     end
-    if not self.combatEnabled then return blocked("DISABLED", "Ausgeschaltet. Änderungen der Kampfbelegung gelten erst nach dem Kampf.") end
+    if not self.combatEnabled then return blocked("DISABLED", L("Ausgeschaltet. Änderungen der Kampfbelegung gelten erst nach dem Kampf.")) end
     if not self.combatSpell then
         if self.combatReason == "COMBAT_SPELL_NOT_LEARNED" then
-            return blocked(self.combatReason, "Könige ist für den Kampf nicht gelernt. Nach dem Kampf Könige lernen; /fmb auto nutzt gelernte Alternativen außerhalb des Kampfes.")
+            return blocked(self.combatReason, L("Könige ist für den Kampf nicht gelernt. Nach dem Kampf Könige lernen; /fmb auto nutzt gelernte Alternativen außerhalb des Kampfes."))
         end
-        return blocked("COMBAT_SPELL_UNAVAILABLE", "Könige konnte vor dem Kampf nicht vorbereitet werden. Nach dem Kampf /fmb status prüfen.")
+        return blocked("COMBAT_SPELL_UNAVAILABLE", L("Könige konnte vor dem Kampf nicht vorbereitet werden. Nach dem Kampf /fmb status prüfen."))
     end
     return {ready = true, code = "COMBAT_FIXED_READY", spellID = 20217,
-        text = "Im Kampf: Könige auf ein lebendes freundliches Mouseover-Ziel. Keine Prüfung vorhandener Segen."
-            .. (self.combatDirty and " Änderungen gelten nach dem Kampf." or "")}
+        text = L("Im Kampf: Könige auf ein lebendes freundliches Mouseover-Ziel. Keine Prüfung vorhandener Segen.")
+            .. (self.combatDirty and L(" Änderungen gelten nach dem Kampf.") or "")}
 end
 
 -- A displayed recommendation is never an armed action. The full context is read
 -- again on each deliberate click, so a changed mouseover cannot reuse old data.
 function ns:Decision()
     self.attemptDecisionFacts = nil
-    if not self.button or not self.router then return blocked("BUTTON_UNAVAILABLE", "Buff-Schaltfläche fehlt. Nach dem Kampf /reload ausführen; bleibt es so: /fmb status und /fmb diag.") end
+    if not self.button or not self.router then return blocked("BUTTON_UNAVAILABLE", L("Buff-Schaltfläche fehlt. Nach dem Kampf /reload ausführen; bleibt es so: /fmb status und /fmb diag.")) end
     if self.API.Locked() then
         -- Read only the binding: no target query or protected write in lockdown.
         -- A prepared Kings macro is unusable when no deliberate key can reach it.
         if self.combatEnabled and not self:BindingKey() then
-            return blocked("NO_BINDING", "Buff-Taste fehlt. Nach dem Kampf mit /fmb bind eine freie Taste wählen.")
+            return blocked("NO_BINDING", L("Buff-Taste fehlt. Nach dem Kampf mit /fmb bind eine freie Taste wählen."))
         end
         return self:CombatDecision()
     end
-    if not self.db.enabled then return blocked("DISABLED", "Ausgeschaltet. Mit /fmb on wieder aktivieren.") end
+    if not self.db.enabled then return blocked("DISABLED", L("Ausgeschaltet. Mit /fmb on wieder aktivieren.")) end
     if not self:BindingKey() then
-        return blocked("NO_BINDING", "Buff-Taste fehlt. Mit /fmb bind eine freie Taste wählen; Drüberfahren allein wirkt keinen Zauber.")
+        return blocked("NO_BINDING", L("Buff-Taste fehlt. Mit /fmb bind eine freie Taste wählen; Drüberfahren allein wirkt keinen Zauber."))
     end
     local ok, context = pcall(self.API.ReadContext, self.db.mode)
-    if not ok then return blocked("CONTEXT_ERROR", "Spielerdaten konnten nicht gelesen werden. Maus neu aufs Ziel halten; bleibt es so: /reload, dann /fmb diag.") end
+    if not ok then return blocked("CONTEXT_ERROR", L("Spielerdaten konnten nicht gelesen werden. Maus neu aufs Ziel halten; bleibt es so: /reload, dann /fmb diag.")) end
     -- Preferences are local policy, not game facts. Attach the current saved
     -- selection to each fresh snapshot, including the snapshot read on key-up.
     if type(context) == "table" then context.classPriorities = self.db.classPriorities end
     local good, decision = pcall(self.Core.Decide, context)
     if not good or type(decision) ~= "table" then
-        return blocked("DECISION_ERROR", "Buff-Auswahl fehlgeschlagen. /reload ausführen; bleibt es so: /fmb diag und unter Hilfe eine Fehlermeldung vorbereiten.")
+        return blocked("DECISION_ERROR", L("Buff-Auswahl fehlgeschlagen. /reload ausführen; bleibt es so: /fmb diag und unter Hilfe eine Fehlermeldung vorbereiten."))
     end
     self.attemptDecisionFacts = attemptTrace("Capture", context, decision)
     return decision
@@ -404,8 +415,9 @@ function ns:ObserveCast(event, unit, spellID)
     self:IncrementDiagnostic(key)
     self:Log(success and "CAST_CONFIRMED" or "CAST_FAILED")
     if not success then
-        local subject = pending.action == "heal" and "Die Heilung ist" or "Der Buff ist"
-        self:Feedback(blocked("CAST_FAILED", subject .. " fehlgeschlagen oder wurde unterbrochen. WoW-Fehlermeldung beachten und erneut versuchen."))
+        self:Feedback(blocked("CAST_FAILED", pending.action == "heal"
+            and L("Die Heilung ist fehlgeschlagen oder wurde unterbrochen. WoW-Fehlermeldung beachten und erneut versuchen.")
+            or L("Der Buff ist fehlgeschlagen oder wurde unterbrochen. WoW-Fehlermeldung beachten und erneut versuchen.")))
     end
 end
 
@@ -472,7 +484,7 @@ end
 -- the selected Sanctum page, so changing a switch never loses the user's place.
 function ns:ShowPanel()
     if not self.Menu then
-        say("Menüdateien fehlen. Vollständiges Addonpaket installieren und /reload ausführen.")
+        say(L("Menüdateien fehlen. Vollständiges Addonpaket installieren und /reload ausführen."))
         return
     end
     self.Menu.Show()
@@ -496,7 +508,7 @@ end
 
 local function priorityError(self)
     self:Log("INVALID_PRIORITIES")
-    say("Klassen-Priorität ungültig; Änderung nicht gespeichert. Unter /fmb priorities jede Segensart höchstens einmal auswählen. /fmb priorities reset setzt alle Klassen auf Standard zurück.")
+    say(L("Klassen-Priorität ungültig; Änderung nicht gespeichert. Unter /fmb priorities jede Segensart höchstens einmal auswählen. /fmb priorities reset setzt alle Klassen auf Standard zurück."))
     return false
 end
 
@@ -514,7 +526,7 @@ function ns:SetClassPriorities(classToken, priorities)
     self.db.classPriorities = candidate
     if self.Menu then self.Menu.priorityError = nil end
     self:Refresh()
-    say("Klassen-Priorität gespeichert. Sie gilt im Automodus außerhalb des Kampfes.")
+    say(L("Klassen-Priorität gespeichert. Sie gilt im Automodus außerhalb des Kampfes."))
     return true
 end
 
@@ -536,8 +548,8 @@ function ns:ResetClassPriorities(classToken)
     -- Clear that stale UI error before showing the successfully restored list.
     if self.Menu then self.Menu.priorityError = nil end
     self:Refresh()
-    say(classToken and "Klassen-Priorität auf Standard zurückgesetzt. Andere Klassen bleiben unverändert."
-        or "Prioritäten aller Klassen auf Standard zurückgesetzt.")
+    say(classToken and L("Klassen-Priorität auf Standard zurückgesetzt. Andere Klassen bleiben unverändert.")
+        or L("Prioritäten aller Klassen auf Standard zurückgesetzt."))
     return true
 end
 
@@ -545,73 +557,69 @@ function ns:Help()
     if self:CasterClass() ~= "PALADIN" then
         local choices = {}
         for _, row in ipairs(self.Core.BuffModes(self.playerClass)) do choices[#choices + 1] = "/fmb " .. row[1] end
-        say("Klassenbuffs: " .. table.concat(choices, " | ") .. ". Menü mit /fmb öffnen; /fmb bind richtet die Taste ein.")
-        say("Freundlichen anderen Spieler wählen, Taste drücken und loslassen. Im Kampf, auf Reittieren und bei unbekannten Daten gesperrt. Bloßes Mouseover zaubert nie.")
-        say("Auto erhält gleichartige vorhandene Buffs. Magie dämpfen/verstärken und Wasserwandeln nur bewusst auswählen: Sie verändern Heilung bzw. Bewegung. Schamanen brauchen Reagenzien; WoW zeigt fehlende Gegenstände beim Zaubern.")
-        say("Heilung, feste Könige im Kampf, Segensgrüße, Zähler und Ranking-Export gehören zum Paladin-Modul. Gruppen-/Eigenbuffs bei Krieger, Jäger und Schurke direkt über WoW nutzen.")
-        say("/fmb debug on, /fmb status und /fmb diag zeigen lokale technische Codes. Danach /fmb debug off.")
-        say("/fmb lang auto | de | en wählt die Sprache von Menü und Chat; Auto folgt dem WoW-Client. Menütexte wechseln nach /reload.")
+        say(L("Klassenbuffs: %s. Menü mit /fmb öffnen; /fmb bind richtet die Taste ein."):format(table.concat(choices, " | ")))
+        say(L("Freundlichen anderen Spieler wählen, Taste drücken und loslassen. Im Kampf, auf Reittieren und bei unbekannten Daten gesperrt. Bloßes Mouseover zaubert nie."))
+        say(L("Auto erhält gleichartige vorhandene Buffs. Magie dämpfen/verstärken und Wasserwandeln nur bewusst auswählen: Sie verändern Heilung bzw. Bewegung. Schamanen brauchen Reagenzien; WoW zeigt fehlende Gegenstände beim Zaubern."))
+        say(L("Heilung, feste Könige im Kampf, Segensgrüße, Zähler und Ranking-Export gehören zum Paladin-Modul. Gruppen-/Eigenbuffs bei Krieger, Jäger und Schurke direkt über WoW nutzen."))
+        say(L("/fmb debug on, /fmb status und /fmb diag zeigen lokale technische Codes. Danach /fmb debug off."))
+        say(L("/fmb lang auto | de | en wählt die Sprache von Menü und Chat; Auto folgt dem WoW-Client. Menütexte wechseln nach /reload."))
         return
     end
-    say("/fmb intro zeigt die kurze Einführung. /fmb bind öffnet die Tastenwahl; Escape bricht ab. Belegte Tasten bleiben geschützt.")
-    say("Alternativ: WoW-Optionen → Tastaturbelegung → Forever Mouseover Buff. Ohne deine Auswahl wird keine Taste belegt.")
-    say("Maus über einen befreundeten Spieler halten, Taste drücken und loslassen. Solange du selbst außerhalb des Kampfes bist, darf das Ziel auch kämpfen. Ein vorhandener gleichartiger Segen bleibt erhalten; Auto wählt eine hilfreiche Alternative. Auf Reittieren ist die Auto-Auswahl gesperrt.")
-    say("Außerhalb des Kampfes: Stehst du still und hat das freundliche Mausziel strikt unter 50 % Leben, wirkt dieselbe Taste eine gelernte nutzbare Heilung: zuerst Lichtblitz, sonst Heiliges Licht. Andernfalls gilt die bisherige sichere Segenauswahl. Bloßes Mouseover zaubert nie.")
-    say("Im Kampf: dieselbe Taste wirkt ausschließlich Segen der Könige, sobald gelernt. Keine Klassen-, Rang- oder Buffprüfung; eigene Segen können ersetzt werden. An/Aus-Änderungen gelten erst nach dem Kampf.")
-    say("Auto: Unter /fmb priorities für jede Zielklasse Segen aktivieren und nach Priorität ordnen. Druiden: standardmäßig Könige → Weisheit → Macht. Bereits vorhandene fremde Segen werden übersprungen; eigene Segen bleiben stehen. Nur gelernte Ränge bis zur Zielstufe.")
-    say("/fmb priorities reset setzt alle Klassen auf Standard zurück. Einzelne Klassen lassen sich im Menü zurücksetzen. Die Prioritäten gelten außerhalb des Kampfes im Modus Auto; feste Modi bleiben unabhängig.")
-    say("/fmb auto | might | wisdom | kings wählt den Modus; /fmb on | off schaltet ein/aus. /fmb debug on, /fmb status, danach /fmb debug off für Fehlerdiagnose.")
-    say("Gesperrte Zaubertaste: Erklärung im Bild und Chat, Hinweiston höchstens alle 2 Sekunden. /fmb sound on | off schaltet den Ton; /fmb soundtest prüft ihn.")
+    say(L("/fmb intro zeigt die kurze Einführung. /fmb bind öffnet die Tastenwahl; Escape bricht ab. Belegte Tasten bleiben geschützt."))
+    say(L("Alternativ: WoW-Optionen → Tastaturbelegung → Forever Mouseover Buff. Ohne deine Auswahl wird keine Taste belegt."))
+    say(L("Maus über einen befreundeten Spieler halten, Taste drücken und loslassen. Solange du selbst außerhalb des Kampfes bist, darf das Ziel auch kämpfen. Ein vorhandener gleichartiger Segen bleibt erhalten; Auto wählt eine hilfreiche Alternative. Auf Reittieren ist die Auto-Auswahl gesperrt."))
+    say(L("Außerhalb des Kampfes: Stehst du still und hat das freundliche Mausziel strikt unter 50 % Leben, wirkt dieselbe Taste eine gelernte nutzbare Heilung: zuerst Lichtblitz, sonst Heiliges Licht. Andernfalls gilt die bisherige sichere Segenauswahl. Bloßes Mouseover zaubert nie."))
+    say(L("Im Kampf: dieselbe Taste wirkt ausschließlich Segen der Könige, sobald gelernt. Keine Klassen-, Rang- oder Buffprüfung; eigene Segen können ersetzt werden. An/Aus-Änderungen gelten erst nach dem Kampf."))
+    say(L("Auto: Unter /fmb priorities für jede Zielklasse Segen aktivieren und nach Priorität ordnen. Druiden: standardmäßig Könige → Weisheit → Macht. Bereits vorhandene fremde Segen werden übersprungen; eigene Segen bleiben stehen. Nur gelernte Ränge bis zur Zielstufe."))
+    say(L("/fmb priorities reset setzt alle Klassen auf Standard zurück. Einzelne Klassen lassen sich im Menü zurücksetzen. Die Prioritäten gelten außerhalb des Kampfes im Modus Auto; feste Modi bleiben unabhängig."))
+    say(L("/fmb auto | might | wisdom | kings wählt den Modus; /fmb on | off schaltet ein/aus. /fmb debug on, /fmb status, danach /fmb debug off für Fehlerdiagnose."))
+    say(L("Gesperrte Zaubertaste: Erklärung im Bild und Chat, Hinweiston höchstens alle 2 Sekunden. /fmb sound on | off schaltet den Ton; /fmb soundtest prüft ihn."))
     say('Bestätigter Segen: zwölf wechselnde Grüße passend zu deiner Klasse und deinem Volk, mit Empfängername und passender Volksanrede. Bei unbekannter Klasse bleibt der Text neutral. /fmb whisper on | off schaltet ihn. Bei unklaren oder geschützten Empfängerdaten wird nichts gesendet.')
-    say("Empfänger aller Klassen: /fmb receive off blendet automatische Addongrüße aus und lehnt neue Anfragen anderer FMB-Installationen ab. /fmb receive on erlaubt sie wieder. Eigene gesendete Grüße bleiben separat mit /fmb whisper on | off schaltbar. Der Addonname erscheint mit installiertem Addon goldfarben.")
-    say("Eigene automatische Grüße sind standardmäßig in Chat und WIM verborgen, ohne WIM-Popups oder WIM-Töne. /fmb outgoing on | off zeigt oder verbirgt sie; Versand und Empfang bleiben unabhängig. Persönliche Whisper bleiben sichtbar.")
-    say("/fmb stats zeigt lokale, unbestätigte Buff-Zähler. /fmb ranking on | off stellt neue Ereignisse für einen freiwilligen Upload bereit; Standard aus. /fmb ranking help erklärt Dateiexport und Upload. Keine Empfänger werden exportiert.")
-    say("/fmb diag zeigt das lokale Diagnoseprotokoll mit den letzten Ereignissen. Es enthält feste Codes, öffentliche Versions-/Schalterwerte und anonyme Versuchsdetails (Klasse, Level, Zauber und Auswahlgrund). Erst /reload oder ausloggen schreibt es für eine Dateiauswertung auf die Festplatte.")
-    say("/fmb feedback: Fehler, Wünsche oder Features mit Vorschau für GitHub vorbereiten. Technische Angaben sind freiwillig. Link markieren, mit Cmd/Strg+C kopieren und im Browser prüfen und absenden.")
-    say("/fmb thanks on | off: Automatisch per /danke für neue fremde Buffs bedanken (Standard AN). Namensgerichtet ohne Zielwechsel, mit Spam-Sperre. Unlesbare oder unbekannte Buffs werden ausgelassen.")
-    say("Siegel-Ablauf: ein kurzer Ton nach beobachtetem natürlichem Ende. /fmb seal on | off schaltet ihn unabhängig vom Buff-Hinweiston.")
-    say("/fmb lang auto | de | en wählt die Sprache von Menü und Chat; Auto folgt dem WoW-Client. Menütexte wechseln nach /reload.")
+    say(L("Empfänger aller Klassen: /fmb receive off blendet automatische Addongrüße aus und lehnt neue Anfragen anderer FMB-Installationen ab. /fmb receive on erlaubt sie wieder. Eigene gesendete Grüße bleiben separat mit /fmb whisper on | off schaltbar. Der Addonname erscheint mit installiertem Addon goldfarben."))
+    say(L("Eigene automatische Grüße sind standardmäßig in Chat und WIM verborgen, ohne WIM-Popups oder WIM-Töne. /fmb outgoing on | off zeigt oder verbirgt sie; Versand und Empfang bleiben unabhängig. Persönliche Whisper bleiben sichtbar."))
+    say(L("/fmb stats zeigt lokale, unbestätigte Buff-Zähler. /fmb ranking on | off stellt neue Ereignisse für einen freiwilligen Upload bereit; Standard aus. /fmb ranking help erklärt Dateiexport und Upload. Keine Empfänger werden exportiert."))
+    say(L("/fmb diag zeigt das lokale Diagnoseprotokoll mit den letzten Ereignissen. Es enthält feste Codes, öffentliche Versions-/Schalterwerte und anonyme Versuchsdetails (Klasse, Level, Zauber und Auswahlgrund). Erst /reload oder ausloggen schreibt es für eine Dateiauswertung auf die Festplatte."))
+    say(L("/fmb feedback: Fehler, Wünsche oder Features mit Vorschau für GitHub vorbereiten. Technische Angaben sind freiwillig. Link markieren, mit Cmd/Strg+C kopieren und im Browser prüfen und absenden."))
+    say(L("/fmb thanks on | off: Automatisch per /danke für neue fremde Buffs bedanken (Standard AN). Namensgerichtet ohne Zielwechsel, mit Spam-Sperre. Unlesbare oder unbekannte Buffs werden ausgelassen."))
+    say(L("Siegel-Ablauf: ein kurzer Ton nach beobachtetem natürlichem Ende. /fmb seal on | off schaltet ihn unabhängig vom Buff-Hinweiston."))
+    say(L("/fmb lang auto | de | en wählt die Sprache von Menü und Chat; Auto folgt dem WoW-Client. Menütexte wechseln nach /reload."))
 end
 
 function ns:Diagnostics()
     local diagnostic = self:DiagnosticSnapshot()
     local client = diagnostic.status
-    return "Forever Mouseover Buff " .. self.VERSION .. " | Client " .. tostring(client.clientVersion or "unbekannt")
-        .. " / " .. tostring(client.clientBuild or "unbekannt") .. " / " .. tostring(client.clientInterface or "unbekannt")
-        .. "\nTaste: " .. self:BindingLabel() .. " | Modus: " .. (modes[self.db.mode] or "Auto")
-        .. " | Aktiv: " .. tostring(self.db.enabled) .. "\nStatus: " .. (self.decision and self.decision.text or "Noch nicht geprüft")
-        .. "\nHinweiston: " .. (self.db.sound and "an" or "aus") .. " | Test: /fmb soundtest"
-        .. " | Erfolgswhisper: " .. (self.db.whisper and "an" or "aus")
-        .. " | Empfangene Grüße: " .. (self.db.receiveWhispers and "an" or "aus")
-        .. " | Eigene Grüße in Chat/WIM: " .. (self.db.showOutgoingWhispers and "an" or "aus")
-        .. " | Ranking-Export: " .. (self.db.rankingEnabled and "an (unbestätigt)" or "aus")
-        .. " | Automatisch danken: " .. (self.db.autoThanks and "an" or "aus")
-        .. " | Danke-Status: " .. (self.AutoThanks and self.AutoThanks.LastCode or "noch kein Ereignis")
-        .. " | Siegelton: " .. (self.db.sealSound and "an" or "aus")
-        .. "\nKampf: " .. (self.playerClass ~= "PALADIN" and "Klassenbuffs gesperrt"
-            or (self.combatSpell and "Könige vorbereitet" or "Könige nicht vorbereitet"))
-        .. (self.combatDirty and " | Änderung nach dem Kampf" or "")
+    local unknown = L("unbekannt")
+    return "Forever Mouseover Buff " .. self.VERSION .. " | Client " .. tostring(client.clientVersion or unknown)
+        .. " / " .. tostring(client.clientBuild or unknown) .. " / " .. tostring(client.clientInterface or unknown)
+        .. "\n" .. L("Taste: %s | Modus: %s | Aktiv: %s"):format(self:BindingLabel(), L(modes[self.db.mode] or "Auto"), tostring(self.db.enabled))
+        .. "\nStatus: " .. (self.decision and self.decision.text or L("Noch nicht geprüft"))
+        .. "\n" .. L("Hinweiston: %s | Test: /fmb soundtest | Erfolgswhisper: %s | Empfangene Grüße: %s | Eigene Grüße in Chat/WIM: %s | Ranking-Export: %s | Automatisch danken: %s | Danke-Status: %s | Siegelton: %s"):format(
+            onOff(self.db.sound), onOff(self.db.whisper), onOff(self.db.receiveWhispers), onOff(self.db.showOutgoingWhispers),
+            self.db.rankingEnabled and L("an (unbestätigt)") or L("aus"), onOff(self.db.autoThanks),
+            self.AutoThanks and self.AutoThanks.LastCode or L("noch kein Ereignis"), onOff(self.db.sealSound))
+        .. "\n" .. L("Kampf: %s"):format(self.playerClass ~= "PALADIN" and L("Klassenbuffs gesperrt")
+            or (self.combatSpell and L("Könige vorbereitet") or L("Könige nicht vorbereitet")))
+        .. (self.combatDirty and L(" | Änderung nach dem Kampf") or "")
         .. "\nCodes: " .. table.concat(self.logs or {}, ", ")
-        .. "\nBuff-Versuche: " .. diagnostic.attempts .. " | Bestätigte Zauberereignisse: "
-        .. diagnostic.confirmed .. " | Fehlgeschlagen: " .. diagnostic.failed
-        .. "\nStrukturiertes Protokoll: /fmb diag. Datei wird erst bei /reload oder Ausloggen aktualisiert."
+        .. "\n" .. L("Buff-Versuche: %s | Bestätigte Zauberereignisse: %s | Fehlgeschlagen: %s"):format(diagnostic.attempts, diagnostic.confirmed, diagnostic.failed)
+        .. "\n" .. L("Strukturiertes Protokoll: /fmb diag. Datei wird erst bei /reload oder Ausloggen aktualisiert.")
 end
 
 function ns:DiagnosticReport()
     self:RefreshDiagnosticStatus()
     local diagnostic = self:DiagnosticSnapshot()
-    local lines = {"Diagnoseprotokoll " .. self.VERSION .. " | " .. #diagnostic.events .. "/64 Ereignisse | "
-        .. (diagnostic.storageAvailable and "lokal bereit" or "nur im Arbeitsspeicher – Datei nicht beschreibbar"),
-        "Versuche: " .. diagnostic.attempts .. " | Bestätigt: " .. diagnostic.confirmed .. " | Fehlgeschlagen: " .. diagnostic.failed}
+    local lines = {L("Diagnoseprotokoll %s | %s/64 Ereignisse | %s"):format(self.VERSION, #diagnostic.events,
+            diagnostic.storageAvailable and L("lokal bereit") or L("nur im Arbeitsspeicher – Datei nicht beschreibbar")),
+        L("Versuche: %s | Bestätigt: %s | Fehlgeschlagen: %s"):format(diagnostic.attempts, diagnostic.confirmed, diagnostic.failed)}
     for index = math.max(1, #diagnostic.events - 4), #diagnostic.events do
         local event = diagnostic.events[index]
         lines[#lines + 1] = "#" .. event.sequence .. " [" .. event.severity .. "/" .. event.origin .. "] " .. event.code
     end
-    lines[#lines + 1] = attemptTrace("Report") or "Versuchsdetails nicht verfügbar."
+    lines[#lines + 1] = attemptTrace("Report") or L("Versuchsdetails nicht verfügbar.")
     if self.attemptTraceError then
-        lines[#lines + 1] = "Versuchsdiagnose fehlgeschlagen (DIAGNOSTIC_INVALID). Nach dem Kampf /reload ausführen; bleibt es so: Diagnose prüfen lassen."
+        lines[#lines + 1] = L("Versuchsdiagnose fehlgeschlagen (DIAGNOSTIC_INVALID). Nach dem Kampf /reload ausführen; bleibt es so: Diagnose prüfen lassen.")
     end
-    lines[#lines + 1] = "Für direkte Dateiauswertung: /reload oder ausloggen. Vorher liegt das aktuelle Protokoll nur im Spielspeicher; keine automatische Übertragung."
+    lines[#lines + 1] = L("Für direkte Dateiauswertung: /reload oder ausloggen. Vorher liegt das aktuelle Protokoll nur im Spielspeicher; keine automatische Übertragung.")
     return table.concat(lines, "\n")
 end
 
@@ -622,12 +630,12 @@ function ns:LanguageStatus()
     local setting, effective = self.Locale.Setting(), self.Locale.Effective()
     local line
     if setting == "auto" then
-        line = "Sprache: Automatisch (" .. languageNames[effective] .. ", folgt dem WoW-Client). /fmb lang de | en legt sie fest."
+        line = L("Sprache: Automatisch (%s, folgt dem WoW-Client). /fmb lang de | en legt sie fest."):format(languageNames[effective])
     else
-        line = "Sprache: " .. languageNames[effective] .. ". /fmb lang auto folgt wieder dem WoW-Client."
+        line = L("Sprache: %s. /fmb lang auto folgt wieder dem WoW-Client."):format(languageNames[effective])
     end
     if self.Menu and type(self.Menu.ReloadPending) == "function" and self.Menu.ReloadPending() then
-        line = line .. " Menütexte wechseln nach /reload."
+        line = line .. L(" Menütexte wechseln nach /reload.")
     end
     return line
 end
@@ -647,57 +655,57 @@ function ns:Command(command)
     elseif command == "priorities reset" then self:ResetClassPriorities(); return
     elseif modes[command] then
         if not self:ModeAllowed(command) then
-            say("Dieser Buff gehört nicht zu deiner Klasse. /fmb auto oder Klassenbuff im Menü wählen.")
+            say(L("Dieser Buff gehört nicht zu deiner Klasse. /fmb auto oder Klassenbuff im Menü wählen."))
             return
         end
         self.db.mode = command
     elseif command == "on" or command == "off" then
         self.db.enabled = command == "on"
         if not self:RefreshCombatAction() and self.API.Locked() then
-            say("Die Kampfbelegung bleibt bis Kampfende unverändert; diese Einstellung gilt nach dem Kampf.")
+            say(L("Die Kampfbelegung bleibt bis Kampfende unverändert; diese Einstellung gilt nach dem Kampf."))
         end
     elseif command == "debug on" or command == "debug off" then
-        self.db.debug = command == "debug on"; say("Debug " .. (self.db.debug and "an" or "aus") .. ".")
+        self.db.debug = command == "debug on"; say("Debug " .. onOff(self.db.debug) .. ".")
     elseif command == "sound on" or command == "sound off" then
         self.db.sound = command == "sound on"
-        say("Hinweiston " .. (self.db.sound and "an" or "aus") .. ".")
+        say(L("Hinweiston %s."):format(onOff(self.db.sound)))
     elseif command == "thanks on" or command == "thanks off" then
         self.db.autoThanks = command == "thanks on"
         if self.AutoThanks then self.AutoThanks.Reset(); self.AutoThanks.Check() end
-        say("Automatisch für erhaltene Buffs danken: " .. (self.db.autoThanks and "AN" or "AUS") .. ". Kein Zielwechsel; /fmb thanks off schaltet es aus.")
+        say(L("Automatisch für erhaltene Buffs danken: %s. Kein Zielwechsel; /fmb thanks off schaltet es aus."):format(self.db.autoThanks and L("AN") or L("AUS")))
     elseif command == "whisper on" or command == "whisper off" then
         self.db.whisper = command == "whisper on"
-        say("Automatische Grüße senden: " .. (self.db.whisper and "AN" or "AUS") .. ". Buffen und eigene Anzeige bleiben unverändert.")
+        say(L("Automatische Grüße senden: %s. Buffen und eigene Anzeige bleiben unverändert."):format(self.db.whisper and L("AN") or L("AUS")))
     elseif command == "receive on" or command == "receive off" then
         self.db.receiveWhispers = command == "receive on"
         -- Existing callbacks read this setting live; do not add another WIM wrapper.
-        say("Empfangene Addon-Segensgrüße " .. (self.db.receiveWhispers and "an" or "aus") .. ". Eigene gesendete Grüße bleiben unverändert.")
+        say(L("Empfangene Addon-Segensgrüße %s. Eigene gesendete Grüße bleiben unverändert."):format(onOff(self.db.receiveWhispers)))
     elseif command == "outgoing on" or command == "outgoing off" then
         self.db.showOutgoingWhispers = command == "outgoing on"
-        say("Eigene Grüße verbergen: " .. (self.db.showOutgoingWhispers and "AUS" or "AN")
-            .. ". Gilt für Chat und WIM; Versand und persönliche Whisper bleiben unverändert.")
+        say(L("Eigene Grüße verbergen: %s. Gilt für Chat und WIM; Versand und persönliche Whisper bleiben unverändert."):format(
+            self.db.showOutgoingWhispers and L("AUS") or L("AN")))
     elseif command == "seal on" or command == "seal off" then
         self.db.sealSound = command == "seal on"
         if self.SealReminder then self.SealReminder.Check() end
-        say("Siegel-Ablaufton " .. (self.db.sealSound and "an" or "aus") .. ".")
+        say(L("Siegel-Ablaufton %s."):format(onOff(self.db.sealSound)))
     elseif command == "soundtest" then
-        if not self.db.sound then say("Hinweiston ist aus. Mit /fmb sound on aktivieren.")
-        elseif self:PlayFeedbackSound() then say("Testton angefordert. Falls unhörbar: WoW-Soundoptionen prüfen.") end
+        if not self.db.sound then say(L("Hinweiston ist aus. Mit /fmb sound on aktivieren."))
+        elseif self:PlayFeedbackSound() then say(L("Testton angefordert. Falls unhörbar: WoW-Soundoptionen prüfen.")) end
         return
     elseif command == "ranking help" then
-        say("Community-Ranking: freiwillig und unbestätigt. Lokale Dateien sind veränderbar; Verschlüsselung wäre kein Echtheitsnachweis.")
-        say("1. /fmb ranking on aktiviert neue Exportereignisse. 2. /reload oder ausloggen speichert die Datei.")
-        say("3. Mit Companion export eine reine Ranking-JSON-Datei erzeugen (Anleitung im Paket). 4. Auf der Ranking-Seite Zugang und JSON auswählen, Vorschau prüfen und Upload ausdrücklich bestätigen.")
-        say("Das Addon stellt keine Webverbindung her. Ohne eingerichtete Ranking-Seite gibt es keinen Online-Rang. /fmb ranking off beendet neue Exporte; laufenden Companion für sofortigen Uploadstopp beenden.")
+        say(L("Community-Ranking: freiwillig und unbestätigt. Lokale Dateien sind veränderbar; Verschlüsselung wäre kein Echtheitsnachweis."))
+        say(L("1. /fmb ranking on aktiviert neue Exportereignisse. 2. /reload oder ausloggen speichert die Datei."))
+        say(L("3. Mit Companion export eine reine Ranking-JSON-Datei erzeugen (Anleitung im Paket). 4. Auf der Ranking-Seite Zugang und JSON auswählen, Vorschau prüfen und Upload ausdrücklich bestätigen."))
+        say(L("Das Addon stellt keine Webverbindung her. Ohne eingerichtete Ranking-Seite gibt es keinen Online-Rang. /fmb ranking off beendet neue Exporte; laufenden Companion für sofortigen Uploadstopp beenden."))
         return
     elseif command == "ranking on" or command == "ranking off" then
         if not self.RankingExport or not self.RankingExport.SetEnabled(command == "ranking on") then
-            say("Ranking-Export nicht verfügbar. /fmb status zeigt den Diagnosecode."); return
+            say(L("Ranking-Export nicht verfügbar. /fmb status zeigt den Diagnosecode.")); return
         end
         if self.db.rankingEnabled then
-            say("Ranking-Export an (Community, unbestätigt). Neue Buff-Ereignisse werden lokal bereitgestellt. Upload nur über den separat eingerichteten Companion oder bewusst auf der Ranking-Seite. /reload speichert die Datei; /fmb ranking help erklärt den Ablauf.")
+            say(L("Ranking-Export an (Community, unbestätigt). Neue Buff-Ereignisse werden lokal bereitgestellt. Upload nur über den separat eingerichteten Companion oder bewusst auf der Ranking-Seite. /reload speichert die Datei; /fmb ranking help erklärt den Ablauf."))
         else
-            say("Ranking-Export aus; lokale Warteschlange geleert. Für sofortigen Uploadstopp den Companion stoppen; /reload speichert den Schalter in die Datei. Bereits hochgeladene Daten mit Companion leave löschen.")
+            say(L("Ranking-Export aus; lokale Warteschlange geleert. Für sofortigen Uploadstopp den Companion stoppen; /reload speichert den Schalter in die Datei. Bereits hochgeladene Daten mit Companion leave löschen."))
         end
         self:Refresh()
         return
@@ -705,25 +713,25 @@ function ns:Command(command)
         if self.Stats then
             local summary = self.Stats.Summary()
             if summary.available == false then
-                say("Buff-Statistik nicht verfügbar: Der Zählerspeicher ist beschädigt oder nicht lesbar. Er wurde unverändert erhalten. Vor einer Wiederherstellung die SavedVariables sichern; /fmb status zeigt Diagnosecodes.")
+                say(L("Buff-Statistik nicht verfügbar: Der Zählerspeicher ist beschädigt oder nicht lesbar. Er wurde unverändert erhalten. Vor einer Wiederherstellung die SavedVariables sichern; /fmb status zeigt Diagnosecodes."))
                 return
             end
-            say("Buff-Statistik (lokal, unbestätigt): " .. summary.total .. " Segen für andere Spieler.")
-            say("Macht: " .. summary.families.might .. " | Weisheit: " .. summary.families.wisdom
-                .. " | Könige: " .. summary.families.kings .. ". Erfasst werden erfolgreiche FMB-Klicks ab diesem Update.")
-        else say("Statistik fehlt. Vollständiges Addonpaket installieren und neu laden.") end
+            say(L("Buff-Statistik (lokal, unbestätigt): %s Segen für andere Spieler."):format(summary.total))
+            say(L("Macht: %s | Weisheit: %s | Könige: %s. Erfasst werden erfolgreiche FMB-Klicks ab diesem Update."):format(
+                summary.families.might, summary.families.wisdom, summary.families.kings))
+        else say(L("Statistik fehlt. Vollständiges Addonpaket installieren und neu laden.")) end
         return
     elseif command == "feedback" or command == "feedback bug" or command == "feedback wish" or command == "feedback feature" then
         if type(self.ShowFeedbackPanel) == "function" then self:ShowFeedbackPanel(command:match("^feedback (%a+)$"))
-        else say("Feedback-Menü fehlt. Vollständiges Addonpaket installieren und /reload ausführen.") end
+        else say(L("Feedback-Menü fehlt. Vollständiges Addonpaket installieren und /reload ausführen.")) end
         return
     elseif command == "lang" or command:match("^lang %a+$") then
         if not self.Locale then
-            say("Sprachmodul fehlt. Vollständiges Addonpaket installieren und /reload ausführen."); return
+            say(L("Sprachmodul fehlt. Vollständiges Addonpaket installieren und /reload ausführen.")); return
         end
         local value = command:match("^lang (%a+)$")
         if value and not self.Locale.Set(value) then
-            say("Unbekannte Sprache. /fmb lang auto | de | en wählt die Sprache."); return
+            say(L("Unbekannte Sprache. /fmb lang auto | de | en wählt die Sprache.")); return
         end
         say(self:LanguageStatus())
         self:Refresh()
@@ -731,7 +739,7 @@ function ns:Command(command)
     elseif command == "diag" then say(self:DiagnosticReport()); return
     elseif command == "help" then self:Help(); return
     elseif command == "status" then self:Refresh(); say(self:Diagnostics()); return
-    elseif command ~= "" then say("Unbekannter Befehl. /fmb help zeigt die verfügbaren Befehle."); return end
+    elseif command ~= "" then say(L("Unbekannter Befehl. /fmb help zeigt die verfügbaren Befehle.")); return end
     self:ShowPanel()
 end
 
@@ -751,6 +759,7 @@ function ns:Initialize()
     if type(self.db.showOutgoingWhispers) ~= "boolean" then self.db.showOutgoingWhispers = false end
     if self.db.classPriorities == nil then self.db.classPriorities = {} end
     if self.Locale then self.Locale.Initialize() end
+    _G["BINDING_NAME_" .. binding] = L(BINDING_LABEL)
     self.db.schema = 9
     self:InitializeDiagnostics()
     self:CaptureDiagnosticClient()
@@ -761,7 +770,7 @@ function ns:Initialize()
         local ok, ready = pcall(self.Stats.Initialize)
         if not ok then self:Log("STATS_INITIALIZE_FAILED") end
         if not ok or ready ~= true then
-            say("Zählerspeicher nicht verfügbar; die vorhandenen Daten bleiben erhalten. /fmb stats zeigt Hinweise. Buffen bleibt möglich, neue Statistikpunkte werden erst nach einer erfolgreichen Prüfung gespeichert.")
+            say(L("Zählerspeicher nicht verfügbar; die vorhandenen Daten bleiben erhalten. /fmb stats zeigt Hinweise. Buffen bleibt möglich, neue Statistikpunkte werden erst nach einer erfolgreichen Prüfung gespeichert."))
         end
     end
     -- Recipient controls also initialize for non-paladins and disabled buffing.
