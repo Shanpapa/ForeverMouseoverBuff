@@ -208,7 +208,9 @@ nicht pauschal gefiltert.
 - Menü-, Chat-, Status- und Hilfetexte gibt es auf Deutsch und Englisch. Die
   deutschen Texte sind die Quelle; `LocaleEnglish.lua` enthält die englische
   Tabelle, ein Test prüft, dass jeder Text einen Eintrag hat. Grüße an andere
-  Spieler sind in dieser Version weiterhin deutsch.
+  Spieler folgen derselben Einstellung: der Satz geht in der Sprache des
+  Absenders hinaus, Präfix `[Forever Mouseover Buff]` und Zähler
+  `[lokal: N Buffs]` bleiben fest, damit jede Installation ihn erkennt.
 ## 🔔 Töne nach deinem Geschmack
 
 - `/fmb sound on` beziehungsweise `/fmb sound off`: Ton bei gesperrten Buffversuchen.

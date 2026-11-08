@@ -194,7 +194,9 @@ addon or older unmarked message.
 - Menu, chat, status and help texts are available in German and English.
   The German texts are the source; `LocaleEnglish.lua` holds the English
   table, and a test checks that every text has an entry. Greetings sent to
-  other players are still German in this version.
+  other players follow the same setting: the sentence is sent in the
+  sender's language, while the `[Forever Mouseover Buff]` prefix and the
+  `[lokal: N Buffs]` counter stay fixed so every installation recognises it.
 ## 🔔 Sounds you control
 
 - `/fmb sound on` or `/fmb sound off`: feedback for blocked buff attempts.

@@ -2,8 +2,7 @@
 -- Input: the manifest's Lua sources and the registered English table; output: PASS/FAIL and exit status.
 -- Invariants: no game, network or private data; German output is asserted by the other suites.
 -- Debug: lua tests/test_locale_english.lua; the first offending key or entry is printed.
-local SKIP = {["Locale.lua"] = true, ["LocaleEnglish.lua"] = true, ["GreetingCatalog.lua"] = true,
-    ["Greetings.lua"] = true, ["FeberdinDiagnostics.lua"] = true}
+local SKIP = {["Locale.lua"] = true, ["LocaleEnglish.lua"] = true, ["FeberdinDiagnostics.lua"] = true}
 local function fail(message) io.stderr:write("FAIL ", message, "\n"); os.exit(1) end
 local function readAll(path)
     local file = io.open(path, "rb")

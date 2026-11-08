@@ -7,20 +7,29 @@ local _, ns = ...
 local Greetings = {COUNT = 12, PREFIX = "[Forever Mouseover Buff] ",
     COLOR_PREFIX = "|cffffd36b[Forever Mouseover Buff]|r "}
 ns.Greetings = Greetings
+-- Texts resolve at call time through the locale layer; without it (tests,
+-- partial installs) the German key is shown unchanged.
+local function L(key)
+    local lookup = ns.L
+    if lookup then return lookup[key] end
+    return key
+end
+-- K marks a key stored in a file-scope table; it is resolved later with L(...).
+local function K(key) return key end
 
 -- Vocative addresses use the game's public race token plus known male/female code.
 -- Missing or unfamiliar facts use the unmodified name, without guessing a gender.
 local addresses = {
-    Human = {[2] = "edler Mensch", [3] = "edle Menschenfrau"},
-    Dwarf = {[2] = "edler Zwerg", [3] = "edle Zwergin"},
-    NightElf = {[2] = "edler Nachtelf", [3] = "edle Nachtelfe"},
-    Gnome = {[2] = "edler Gnom", [3] = "edle Gnomin"},
-    Draenei = {[2] = "edler Draenei", [3] = "edle Draenei"},
-    Orc = {[2] = "edler Orc", [3] = "edle Orcin"},
-    Scourge = {[2] = "edler Untoter", [3] = "edle Untote"},
-    Tauren = {[2] = "edler Taure", [3] = "edle Taurin"},
-    Troll = {[2] = "edler Troll", [3] = "edle Trollin"},
-    BloodElf = {[2] = "edler Blutelf", [3] = "edle Blutelfe"},
+    Human = {[2] = K("edler Mensch"), [3] = K("edle Menschenfrau")},
+    Dwarf = {[2] = K("edler Zwerg"), [3] = K("edle Zwergin")},
+    NightElf = {[2] = K("edler Nachtelf"), [3] = K("edle Nachtelfe")},
+    Gnome = {[2] = K("edler Gnom"), [3] = K("edle Gnomin")},
+    Draenei = {[2] = K("edler Draenei"), [3] = K("edle Draenei")},
+    Orc = {[2] = K("edler Orc"), [3] = K("edle Orcin")},
+    Scourge = {[2] = K("edler Untoter"), [3] = K("edle Untote")},
+    Tauren = {[2] = K("edler Taure"), [3] = K("edle Taurin")},
+    Troll = {[2] = K("edler Troll"), [3] = K("edle Trollin")},
+    BloodElf = {[2] = K("edler Blutelf"), [3] = K("edle Blutelfe")},
 }
 
 
@@ -72,7 +81,7 @@ local function address(profile, receiver)
     end
     local forms = addresses[race]
     if not forms then return receiver end
-    return forms[sex] .. " " .. receiver
+    return L(forms[sex]) .. " " .. receiver
 end
 
 -- Formatting is deterministic and side-effect free. The caller selects a variant
@@ -95,6 +104,8 @@ function Greetings.Format(profile, variant)
     if link ~= nil and (not ns.SpellLink or not ns.SpellLink.Valid(link)) then
         return nil, "GREETING_INVALID_LINK"
     end
+    -- The counter tag is part of the message grammar that ValidMessage recognises
+    -- on the receiving side; it stays constant across languages.
     local details = count ~= nil and string.format(" [lokal: %.0f Buffs]", count) or ""
     if link then details = details .. " " .. link end
     -- Sender culture chooses the voice; recipient traits only choose the address.

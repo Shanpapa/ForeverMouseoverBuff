@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — English greetings
+
+- Add English greetings for all nine class voices, the neutral voice, the
+  ten race accents and the address forms, resolved through the locale layer
+  when the sender's language is English. The two composed slots use format
+  strings so each language orders its fragments itself; English addresses
+  use one form for both sexes.
+- The message grammar is unchanged: prefix, quoted sentence, sender, the
+  `[lokal: N Buffs]` counter and the spell link stay as before, so German
+  and English installations keep recognising each other's greetings.
+- The English-table scanner now covers GreetingCatalog.lua and Greetings.lua.
+
 ## Unreleased — English interface texts
 
 - Add `LocaleEnglish.lua`: English texts for the menu, chat messages, status
